@@ -40,7 +40,7 @@ The agent is split into **two complementary cron automations** that coordinate s
 
 ```mermaid
 flowchart TB
-    subgraph Stage1["Stage 1: Next-Business-Day Dossier (`meeting-prep-dossier` — Weekdays 17:00 SGT)"]
+    subgraph Stage1["Stage 1: Next-Business-Day Dossier (`meeting-prep-dossier`, Weekdays 17:00 SGT)"]
         direction LR
         C1["List Next Business Day\n(Fri run -> Mon)"] --> Q1{"Qualifies?\nExternal OR\n2+ Cross-Func"}
         Q1 -- "No (Standup, OOO,\nDeclined, >25p)" --> S1["Skip\n(Silence if 0 qualify)"]
@@ -49,7 +49,7 @@ flowchart TB
         D1 --> E1["Email Daily Prep Digest\n+ 1-Line Filtered Footer"]
     end
 
-    subgraph Stage2["Stage 2: T-1h Stateless Reminder (`meeting-prep-reminder` — Hourly 06:00–19:00 SGT)"]
+    subgraph Stage2["Stage 2: T-1h Stateless Reminder (`meeting-prep-reminder`, Hourly 06:00–19:00 SGT)"]
         direction LR
         C2["Exact 60m Window\n[NOW + 60m, NOW + 120m)"] --> Q2{"Qualifies?"}
         Q2 -- "No" --> S2["Silence"]

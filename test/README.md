@@ -1,4 +1,4 @@
-# Meeting Prep Agent — Mock Test Harness
+# Meeting Prep Agent: Mock Test Harness
 
 Exercises the **shipping** automation prompts against a 100% synthetic Workspace. No real calendar, mailbox, Drive file, or email is ever touched.
 
@@ -19,7 +19,7 @@ sidecars/<id>/sidecar.json  ──►  build_test_prompt.py  ──►  TEST MOD
                                                         (grades the run)
 ```
 
-`build_test_prompt.py` reads the `sidecar.json` definition, substitutes the synthetic user's email and timezone from `fixtures/world.json`, and string-replaces each Workspace CLI command with `python3 mock_tool.py <tool>`. That means **the harness always tests whatever prompt is actually shipped** — edit the automation and the tests follow automatically.
+`build_test_prompt.py` reads the `sidecar.json` definition, substitutes the synthetic user's email and timezone from `fixtures/world.json`, and string-replaces each Workspace CLI command with `python3 mock_tool.py <tool>`. That means **the harness always tests whatever prompt is actually shipped**: edit the automation and the tests follow automatically.
 
 Fixture times are relative (`next business day 10:30`, `now + 75 min`) and are resolved to concrete `Asia/Singapore` timestamps at call time, so the scenarios never expire.
 
