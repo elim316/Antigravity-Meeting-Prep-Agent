@@ -1,0 +1,6 @@
+{
+  "name": "meeting-prep-agent",
+  "displayName": "Smart Meeting Prep & Dossier Generator",
+  "version": "1.0.0",
+  "description": "Autonomous two-stage Meeting Prep & Dossier Generator (Next-Business-Day 1-page briefing docs + stateless T-1h reminders) with a 5-scenario hallucination-linted mock test harness."
+}

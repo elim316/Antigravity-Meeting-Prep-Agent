@@ -1,0 +1,186 @@
+{
+  "_comment": "Synthetic world for the Meeting Prep agent test harness. Every person, company, document and issue number below is FICTIONAL. All domains use .example.com so nothing can accidentally resolve or be emailed.",
+  "me": "alex.morgan@company.example.com",
+  "timezone": "Asia/Singapore",
+  "people": {
+    "alex.morgan@company.example.com": {"name": "Alex Morgan", "title": "Staff Solutions Architect", "team": "Core Platform Engineering", "company": "Example Corp"},
+    "priya.n@company.example.com": {"name": "Priya Nair", "title": "Software Engineer", "team": "Core Platform Engineering", "company": "Example Corp"},
+    "wei.tan@company.example.com": {"name": "Wei Tan", "title": "Solutions Architect", "team": "Core Platform Engineering", "company": "Example Corp"},
+    "k.meyer@company.example.com": {"name": "Karin Meyer", "title": "Engineering Manager", "team": "Core Platform Engineering", "company": "Example Corp"},
+    "dmartin@company.example.com": {"name": "Dana Martin", "title": "Partner Engineering Lead", "team": "Partner Engineering (APAC)", "company": "Example Corp"},
+    "rkhan@company.example.com": {"name": "Rahul Khan", "title": "Product Manager", "team": "Identity Platform PM", "company": "Example Corp"},
+    "sofia.b@company.example.com": {"name": "Sofia Barros", "title": "Security Engineer", "team": "Security Reviews", "company": "Example Corp"},
+    "alex.chen@acme.example.com": {"name": "Alex Chen", "title": "Director of Engineering", "team": "Platform", "company": "Acme Corp"},
+    "jordan.lee@acme.example.com": {"name": "Jordan Lee", "title": "Technical Program Manager", "team": "Platform", "company": "Acme Corp"},
+    "m.novak@initech.example.com": {"name": "Marta Novak", "title": "VP Data Platform", "team": "Data", "company": "Initech"},
+    "t.hale@northwind.example.com": {"name": "Tom Hale", "title": "Head of Integrations", "team": "Engineering", "company": "Northwind Traders"},
+    "g.osei@umbrella.example.com": {"name": "Gwen Osei", "title": "CTO", "team": "Executive", "company": "Umbrella Logistics"},
+    "p.stark@starkind.example.com": {"name": "Pete Stark", "title": "Procurement Lead", "team": "Procurement", "company": "Stark Industries"},
+    "v.reyes@globex.example.com": {"name": "Val Reyes", "title": "Account Executive", "team": "Sales", "company": "Globex"}
+  },
+
+  "scenarios": {
+
+    "next_day_mixed": {
+      "automation": "meeting-prep-dossier",
+      "description": "A realistic next business day: 2 meetings must qualify (1 external, 1 cross-functional) and 5 must be filtered out (own-team standup, 312-person all-hands, focus time, public holiday, a declined vendor demo).",
+      "events": [
+        {"summary": "Infra Pod Standup", "when": {"kind": "next_business_day", "time": "09:00", "duration_min": 15},
+         "attendees": [{"email": "alex.morgan@company.example.com", "displayName": "Alex Morgan", "organizer": true}, {"email": "priya.n@company.example.com", "displayName": "Priya Nair"}, {"email": "wei.tan@company.example.com", "displayName": "Wei Tan"}]},
+
+        {"summary": "Acme <> Platform: API Rollout Sync", "when": {"kind": "next_business_day", "time": "10:30", "duration_min": 60},
+         "hangoutLink": "https://meet.google.com/mock-acme-sync",
+         "description": "Recurring bi-weekly sync on the payments API rollout.",
+         "attendees": [{"email": "alex.morgan@company.example.com", "displayName": "Alex Morgan", "organizer": true}, {"email": "alex.chen@acme.example.com", "displayName": "Alex Chen"}, {"email": "jordan.lee@acme.example.com", "displayName": "Jordan Lee"}, {"email": "dmartin@company.example.com", "displayName": "Dana Martin"}]},
+
+        {"summary": "Payments x Identity: Auth Migration Review", "when": {"kind": "next_business_day", "time": "13:00", "duration_min": 60},
+         "hangoutLink": "https://meet.google.com/mock-auth-review",
+         "attendees": [{"email": "alex.morgan@company.example.com", "displayName": "Alex Morgan"}, {"email": "rkhan@company.example.com", "displayName": "Rahul Khan", "organizer": true}, {"email": "sofia.b@company.example.com", "displayName": "Sofia Barros"}, {"email": "dmartin@company.example.com", "displayName": "Dana Martin"}],
+         "organizer": {"email": "rkhan@company.example.com", "displayName": "Rahul Khan"}},
+
+        {"summary": "Q3 All Hands", "when": {"kind": "next_business_day", "time": "15:00", "duration_min": 60},
+         "attendee_count": 312,
+         "attendees": [{"email": "alex.morgan@company.example.com", "displayName": "Alex Morgan"}]},
+
+        {"summary": "Focus Time: Deep Work", "when": {"kind": "next_business_day", "time": "16:00", "duration_min": 120},
+         "eventType": "focusTime", "attendees": []},
+
+        {"summary": "Public Holiday - Mid-Autumn Festival", "when": {"kind": "next_business_day", "all_day": true}, "attendees": []},
+
+        {"summary": "Globex Vendor Demo", "when": {"kind": "next_business_day", "time": "17:30", "duration_min": 45},
+         "attendees": [{"email": "alex.morgan@company.example.com", "displayName": "Alex Morgan", "responseStatus": "declined"}, {"email": "v.reyes@globex.example.com", "displayName": "Val Reyes", "organizer": true}],
+         "organizer": {"email": "v.reyes@globex.example.com", "displayName": "Val Reyes"}}
+      ],
+      "past_events": [
+        {"summary": "Acme <> Platform: API Rollout Sync", "when": {"kind": "days_ago", "value": 10, "time": "10:30", "duration_min": 60},
+         "attendees": [{"email": "alex.morgan@company.example.com"}, {"email": "alex.chen@acme.example.com"}, {"email": "jordan.lee@acme.example.com"}]},
+        {"summary": "Payments x Identity: Auth Migration Review", "when": {"kind": "days_ago", "value": 21, "time": "13:00", "duration_min": 60},
+         "attendees": [{"email": "alex.morgan@company.example.com"}, {"email": "rkhan@company.example.com"}, {"email": "sofia.b@company.example.com"}]}
+      ],
+      "csa": [
+        {"match": ["acme", "alex chen", "jordan lee", "api rollout"],
+         "response": "CALENDAR - Previous syncs with Alex Chen and Jordan Lee:\n* \"Acme <> Platform: API Rollout Sync\" - 10 days ago, 10:30-11:30 SGT (recurring bi-weekly).\n  https://calendar.google.com/calendar/event?eid=mock-acme-sync-prev\n\nGMAIL - Most relevant threads:\n* \"Re: Acme API rollout - security review status\" from Alex Chen (alex.chen@acme.example.com), 3 days ago.\n  Alex wrote: \"Our security team still hasn't signed off on the OAuth scope changes. I'm chasing internally and will confirm by Thursday.\"\n  ACTION ITEM: Alex Chen owes the security review approval. STATUS: pending.\n  https://mail.google.com/mail/u/0/#inbox/mock-thread-acme-security\n* \"Acme rollout: staging cutover window\" from Jordan Lee, 6 days ago.\n  Jordan asked you to confirm whether the staging cutover can move to the week of the code freeze. You have NOT replied.\n  ACTION ITEM: awaiting a reply from you. STATUS: open.\n  https://mail.google.com/mail/u/0/#inbox/mock-thread-acme-cutover\n\nCHAT - Space \"Acme x Platform (ext)\":\n* Jordan Lee, 2 days ago: \"Heads up, our QA coverage for the v2 endpoints is at ~60%. We'll need another sprint.\"\n  https://chat.google.com/room/mock-acme-space/mock-msg-qa\n\nDRIVE - Recently shared between you and these attendees:\n* \"Q4 Roadmap & Launch Plan\" (Slides), edited 4 days ago by Jordan Lee.\n  https://docs.google.com/presentation/d/mock-q4-roadmap/edit\n* \"Acme API Rollout - Timeline v3\" (Doc), edited 9 days ago by you.\n  https://docs.google.com/document/d/mock-acme-timeline/edit\n\nMEETING NOTES - takeaways from the sync 10 days ago:\n* Agreed the rollout order: staging cutover first, GA two weeks later.\n* Open items: security review approvals (Alex Chen), QA coverage for the v2 endpoints (Jordan Lee), code freeze date confirmation (you)."},
+
+        {"match": ["auth migration", "identity", "payments", "rahul", "sofia"],
+         "response": "CALENDAR - Prior meeting: \"Payments x Identity: Auth Migration Review\", 21 days ago.\n  https://calendar.google.com/calendar/event?eid=mock-auth-review-prev\n\nGMAIL:\n* \"Auth migration - blocked on token exchange design\" from Rahul Khan, 5 days ago.\n  Rahul is waiting on YOUR review of the token exchange design before Identity can schedule their sprint. STATUS: awaiting you.\n  https://mail.google.com/mail/u/0/#inbox/mock-thread-auth-token\n* \"Security review b/412998877\" from Sofia Barros, 8 days ago.\n  Sofia opened b/412998877 for the migration threat model; it is currently unassigned.\n  https://mail.google.com/mail/u/0/#inbox/mock-thread-auth-sec\n\nCHAT - Space \"payments-identity-sync\":\n* Sofia Barros, 4 days ago: \"Threat model doc needs an owner before we can book the review slot.\"\n  https://chat.google.com/room/mock-pi-space/mock-msg-threat\n\nDRIVE:\n* \"Auth Migration - Token Exchange Design\" (Doc), edited 5 days ago by Rahul Khan.\n  https://docs.google.com/document/d/mock-auth-design/edit\n\nMEETING NOTES - takeaways from 21 days ago:\n* Agreed to split the migration into two phases.\n* Phase 1 owner was left unassigned."}
+      ],
+      "gmail": [
+        {"match": ["alex.chen", "jordan.lee", "acme"],
+         "results": "THREADS (3):\n1. \"Re: Acme API rollout - security review status\" - Alex Chen - 3 days ago - https://mail.google.com/mail/u/0/#inbox/mock-thread-acme-security\n2. \"Acme rollout: staging cutover window\" - Jordan Lee - 6 days ago - https://mail.google.com/mail/u/0/#inbox/mock-thread-acme-cutover\n3. \"Q4 Roadmap & Launch Plan shared with you\" - Jordan Lee - 4 days ago - https://mail.google.com/mail/u/0/#inbox/mock-thread-acme-roadmap"},
+        {"match": ["rkhan", "sofia.b", "auth"],
+         "results": "THREADS (2):\n1. \"Auth migration - blocked on token exchange design\" - Rahul Khan - 5 days ago - https://mail.google.com/mail/u/0/#inbox/mock-thread-auth-token\n2. \"Security review b/412998877\" - Sofia Barros - 8 days ago - https://mail.google.com/mail/u/0/#inbox/mock-thread-auth-sec"}
+      ],
+      "drive": [
+        {"id": "mock-q4-roadmap", "title": "Q4 Roadmap & Launch Plan", "url": "https://docs.google.com/presentation/d/mock-q4-roadmap/edit", "content": "Slide deck: Q4 rollout phases, staging cutover, GA date, open risks."},
+        {"id": "mock-acme-timeline", "title": "Acme API Rollout - Timeline v3", "url": "https://docs.google.com/document/d/mock-acme-timeline/edit", "content": "Timeline v3: staging cutover, GA two weeks later, code freeze gate."},
+        {"id": "mock-auth-design", "title": "Auth Migration - Token Exchange Design", "url": "https://docs.google.com/document/d/mock-auth-design/edit", "content": "Design doc for the token exchange; review requested from Alex Morgan."}
+      ],
+      "expect": {
+        "emails": 1,
+        "docs": 2,
+        "doc_title_regex": "^Meeting Prep Dossier - \\d{4}-\\d{2}-\\d{2} - .+",
+        "must_contain": ["Alex Chen", "Acme", "security review", "Auth Migration", "Last Scanned", "docs.google.com/document/d/mock-"],
+        "must_not_contain": ["Val Reyes"],
+        "must_not_head": ["Infra Pod Standup", "All Hands", "Globex", "Focus Time", "Public Holiday"]
+      }
+    },
+
+    "next_day_quiet": {
+      "automation": "meeting-prep-dossier",
+      "description": "Silence test: nothing on the next business day qualifies, so the agent must send ZERO emails and create ZERO docs. No 'all clear' message allowed.",
+      "events": [
+        {"summary": "Infra Pod Standup", "when": {"kind": "next_business_day", "time": "09:15", "duration_min": 15},
+         "attendees": [{"email": "alex.morgan@company.example.com", "organizer": true}, {"email": "priya.n@company.example.com"}, {"email": "wei.tan@company.example.com"}]},
+        {"summary": "1:1 Alex / Karin", "when": {"kind": "next_business_day", "time": "11:00", "duration_min": 30},
+         "attendees": [{"email": "alex.morgan@company.example.com"}, {"email": "k.meyer@company.example.com", "organizer": true}]},
+        {"summary": "Focus Time: Deep Work", "when": {"kind": "next_business_day", "time": "14:00", "duration_min": 120}, "eventType": "focusTime", "attendees": []},
+        {"summary": "Q3 All Hands", "when": {"kind": "next_business_day", "time": "15:00", "duration_min": 60}, "attendee_count": 312,
+         "attendees": [{"email": "alex.morgan@company.example.com"}]}
+      ],
+      "past_events": [],
+      "csa": [],
+      "gmail": [],
+      "drive": [],
+      "expect": {"emails": 0, "docs": 0, "must_contain": [], "must_not_contain": []}
+    },
+
+    "next_day_cold_lead": {
+      "automation": "meeting-prep-dossier",
+      "description": "Hallucination test: a genuine external meeting with a brand-new company and ZERO prior history. The dossier must be produced but must say 'No prior context found' instead of inventing a recap, action items or shared files.",
+      "events": [
+        {"summary": "Initech <> Platform: Intro Call", "when": {"kind": "next_business_day", "time": "14:00", "duration_min": 45},
+         "hangoutLink": "https://meet.google.com/mock-initech-intro",
+         "attendees": [{"email": "alex.morgan@company.example.com", "organizer": true}, {"email": "m.novak@initech.example.com", "displayName": "Marta Novak"}]}
+      ],
+      "past_events": [],
+      "csa": [],
+      "gmail": [],
+      "drive": [],
+      "expect": {
+        "emails": 1,
+        "docs": 1,
+        "doc_title_regex": "^Meeting Prep Dossier - \\d{4}-\\d{2}-\\d{2} - .+",
+        "must_contain": ["Initech", "Marta Novak", "No prior context found"],
+        "must_not_contain": []
+      }
+    },
+
+    "t1h_reuse": {
+      "automation": "meeting-prep-reminder",
+      "description": "Reuse test: a qualifying meeting starts in 75 minutes and a dossier doc already exists in Drive. The agent must link the existing doc and must NOT create a second one.",
+      "events": [
+        {"summary": "Team Sync", "when": {"kind": "offset_minutes", "value": 20, "duration_min": 30},
+         "attendees": [{"email": "alex.morgan@company.example.com", "organizer": true}, {"email": "priya.n@company.example.com"}]},
+        {"summary": "Acme <> Platform: API Rollout Sync", "when": {"kind": "offset_minutes", "value": 75, "duration_min": 60},
+         "hangoutLink": "https://meet.google.com/mock-acme-sync",
+         "attendees": [{"email": "alex.morgan@company.example.com", "organizer": true}, {"email": "alex.chen@acme.example.com", "displayName": "Alex Chen"}, {"email": "jordan.lee@acme.example.com", "displayName": "Jordan Lee"}]}
+      ],
+      "past_events": [],
+      "csa": [
+        {"match": ["acme", "alex chen", "jordan lee", "api rollout"],
+         "response": "GMAIL:\n* \"Re: Acme API rollout - security review status\" from Alex Chen, 3 days ago. Security sign-off still pending.\n  https://mail.google.com/mail/u/0/#inbox/mock-thread-acme-security"}
+      ],
+      "gmail": [],
+      "drive": [
+        {"id": "mock-seeded-acme", "title": "Meeting Prep Dossier - {{TODAY}} - Acme <> Platform: API Rollout Sync",
+         "url": "https://docs.google.com/document/d/mock-seeded-acme/edit",
+         "content": "## Meeting details\nAcme <> Platform: API Rollout Sync\n\n## Attendee Context\n- Alex Chen - Director of Engineering, Acme Corp\n- Jordan Lee - Technical Program Manager, Acme Corp\n\n## Last Meeting Recap\n- Agreed rollout order: staging cutover, then GA.\n\n## Open Blockers & Requests\n- Alex Chen owes security review approval (pending).\n- You owe Jordan Lee a reply on the staging cutover window.\n\n## Suggested Agenda & Goals\n1. Get a date for the security sign-off.\n2. Confirm QA coverage for the v2 endpoints.\n3. Lock the staging cutover window."}
+      ],
+      "expect": {
+        "emails": 1,
+        "docs": 0,
+        "must_contain": ["mock-seeded-acme", "Alex Chen"],
+        "must_not_contain": ["Team Sync"]
+      }
+    },
+
+    "t1h_window": {
+      "automation": "meeting-prep-reminder",
+      "description": "Window test: three qualifying external meetings at now+30, now+75 and now+150 minutes. Only the now+75 one is inside [now+60, now+120), so exactly one reminder must be sent. This is what guarantees each meeting is reminded exactly once with no state file.",
+      "events": [
+        {"summary": "Umbrella Logistics QBR", "when": {"kind": "offset_minutes", "value": 30, "duration_min": 60},
+         "attendees": [{"email": "alex.morgan@company.example.com", "organizer": true}, {"email": "g.osei@umbrella.example.com", "displayName": "Gwen Osei"}]},
+        {"summary": "Northwind Integration Kickoff", "when": {"kind": "offset_minutes", "value": 75, "duration_min": 60},
+         "hangoutLink": "https://meet.google.com/mock-northwind",
+         "attendees": [{"email": "alex.morgan@company.example.com", "organizer": true}, {"email": "t.hale@northwind.example.com", "displayName": "Tom Hale"}, {"email": "dmartin@company.example.com", "displayName": "Dana Martin"}]},
+        {"summary": "Stark Industries Procurement Review", "when": {"kind": "offset_minutes", "value": 150, "duration_min": 60},
+         "attendees": [{"email": "alex.morgan@company.example.com", "organizer": true}, {"email": "p.stark@starkind.example.com", "displayName": "Pete Stark"}]}
+      ],
+      "past_events": [],
+      "csa": [
+        {"match": ["northwind", "tom hale", "integration"],
+         "response": "GMAIL:\n* \"Northwind integration - scoping questions\" from Tom Hale, 2 days ago. Tom asked for the connector rate limits and has not received an answer.\n  ACTION ITEM: awaiting a reply from you. STATUS: open.\n  https://mail.google.com/mail/u/0/#inbox/mock-thread-northwind-scope\n\nDRIVE:\n* \"Northwind Integration - Scope Draft\" (Doc), edited 2 days ago by Tom Hale.\n  https://docs.google.com/document/d/mock-northwind-scope/edit\n\nNo prior meetings with Tom Hale."}
+      ],
+      "gmail": [],
+      "drive": [
+        {"id": "mock-northwind-scope", "title": "Northwind Integration - Scope Draft", "url": "https://docs.google.com/document/d/mock-northwind-scope/edit", "content": "Draft scope: connector endpoints, rate limits TBD."}
+      ],
+      "expect": {
+        "emails": 1,
+        "docs": 1,
+        "must_contain": ["Northwind", "Tom Hale"],
+        "must_not_contain": ["Umbrella", "Gwen Osei", "Stark", "Pete Stark"]
+      }
+    }
+  }
+}
