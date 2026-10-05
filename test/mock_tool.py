@@ -1,24 +1,13 @@
 #!/usr/bin/env python3
 """Mock Workspace CLIs for the Meeting Prep agent test harness.
 
-Stands in for the real calendar, gmail, gdocs, gdrive, cross-corpus search, and
-people directory binaries so the *unmodified* automation prompt can be exercised
-end-to-end against synthetic data. Nothing here touches a real calendar,
-mailbox or Drive.
-
-Usage:
-    python3 mock_tool.py <tool> <args...>
-
-Tools: gcalendar | gmail | gdocs | gdrive | csa_cli | people
-
-Environment:
-    MP_SCENARIO  scenario key in fixtures/world.json (required)
-    MP_OUTBOX    directory for captured emails/docs (default: /tmp/meeting_prep_outbox/<scenario>)
-    MP_WORLD     path to world.json (default: fixtures/world.json)
-    MP_NOW       ISO-8601 override for "now", for deterministic runs
+Stands in for calendar, gmail, gdocs, gdrive, cross-corpus search, and people
+directory commands so the shipping automation prompt can be exercised end-to-end
+against synthetic data without touching any real Workspace account.
 """
 
 import datetime
+import functools
 import hashlib
 import json
 import os
@@ -27,16 +16,16 @@ import re
 import sys
 from zoneinfo import ZoneInfo
 
-TZ = ZoneInfo("Asia/Singapore")
 ROOT = pathlib.Path(__file__).resolve().parent
 WORLD_PATH = pathlib.Path(os.environ.get("MP_WORLD", ROOT / "fixtures" / "world.json"))
 SCENARIO = os.environ.get("MP_SCENARIO", "")
-# NOTE: the outbox must live somewhere the agent's sandbox can write. Anything
-# under ~/.gemini or a source workspace forces an unsandboxed escalation, which
-# an unattended agent cannot get approved - it just hangs.
-OUTBOX = pathlib.Path(
-    os.environ.get("MP_OUTBOX", f"/tmp/meeting_prep_outbox/{SCENARIO or 'default'}")
-)
+OUTBOX = pathlib.Path(os.environ.get("MP_OUTBOX", f"/tmp/meeting_prep_outbox/{SCENARIO or 'default'}"))
+
+_VALUE_FLAGS = {
+    "--date", "--start", "--end", "--max", "--timezone", "--title",
+    "--subject", "--body", "--name-contains", "--query", "--user_prompt",
+    "--allowed_corpora", "--latency_budget_seconds",
+}
 
 
 def die(msg):
@@ -44,38 +33,41 @@ def die(msg):
     sys.exit(2)
 
 
-def now():
-    raw = os.environ.get("MP_NOW")
-    if raw:
-        dt = datetime.datetime.fromisoformat(raw)
-        return dt.astimezone(TZ) if dt.tzinfo else dt.replace(tzinfo=TZ)
-    return datetime.datetime.now(TZ)
+@functools.lru_cache(maxsize=4)
+def _load_world_cached(path_str):
+    path = pathlib.Path(path_str)
+    if not path.exists():
+        die(f"world file not found: {path}")
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def world():
-    if not WORLD_PATH.exists():
-        die(f"world file not found: {WORLD_PATH}")
-    return json.loads(WORLD_PATH.read_text())
+    return _load_world_cached(str(WORLD_PATH))
+
+
+def get_tz():
+    return ZoneInfo(world().get("timezone", "Asia/Singapore"))
+
+
+def now():
+    tz = get_tz()
+    raw = os.environ.get("MP_NOW")
+    if raw:
+        dt = datetime.datetime.fromisoformat(raw)
+        return dt.astimezone(tz) if dt.tzinfo else dt.replace(tzinfo=tz)
+    return datetime.datetime.now(tz)
 
 
 def scenario():
     w = world()
     if SCENARIO not in w["scenarios"]:
-        die(
-            f"unknown MP_SCENARIO={SCENARIO!r}; "
-            f"known: {', '.join(sorted(w['scenarios']))}"
-        )
+        die(f"unknown MP_SCENARIO={SCENARIO!r}; known: {', '.join(sorted(w['scenarios']))}")
     return w, w["scenarios"][SCENARIO]
 
 
-# --------------------------------------------------------------------------
-# time helpers
-# --------------------------------------------------------------------------
-
-
 def next_business_day(d):
-    d = d + datetime.timedelta(days=1)
-    while d.weekday() >= 5:  # 5=Sat, 6=Sun
+    d += datetime.timedelta(days=1)
+    while d.weekday() >= 5:
         d += datetime.timedelta(days=1)
     return d
 
@@ -84,38 +76,29 @@ def resolve_when(when, ref):
     """Turn a relative fixture spec into concrete (start, end, all_day)."""
     kind = when["kind"]
     dur = int(when.get("duration_min", 60))
+    tz = ref.tzinfo or get_tz()
     if kind == "offset_minutes":
-        start = (ref + datetime.timedelta(minutes=int(when["value"]))).replace(
-            second=0, microsecond=0
-        )
+        start = (ref + datetime.timedelta(minutes=int(when["value"]))).replace(second=0, microsecond=0)
         return start, start + datetime.timedelta(minutes=dur), False
-    if kind in ("next_business_day", "today", "tomorrow"):
+    if kind in ("next_business_day", "today", "tomorrow", "days_ago"):
         if kind == "next_business_day":
             day = next_business_day(ref.date())
         elif kind == "tomorrow":
             day = ref.date() + datetime.timedelta(days=1)
+        elif kind == "days_ago":
+            day = ref.date() - datetime.timedelta(days=int(when["value"]))
         else:
             day = ref.date()
         if when.get("all_day"):
-            return (
-                datetime.datetime.combine(day, datetime.time(0, 0), TZ),
-                datetime.datetime.combine(
-                    day + datetime.timedelta(days=1), datetime.time(0, 0), TZ
-                ),
-                True,
-            )
-        hh, mm = (int(x) for x in when["time"].split(":"))
-        start = datetime.datetime.combine(day, datetime.time(hh, mm), TZ)
-        return start, start + datetime.timedelta(minutes=dur), False
-    if kind == "days_ago":
-        day = ref.date() - datetime.timedelta(days=int(when["value"]))
+            s = datetime.datetime.combine(day, datetime.time(0, 0), tz)
+            return s, datetime.datetime.combine(day + datetime.timedelta(days=1), datetime.time(0, 0), tz), True
         hh, mm = (int(x) for x in when.get("time", "10:00").split(":"))
-        start = datetime.datetime.combine(day, datetime.time(hh, mm), TZ)
+        start = datetime.datetime.combine(day, datetime.time(hh, mm), tz)
         return start, start + datetime.timedelta(minutes=dur), False
     die(f"unknown when.kind={kind!r}")
 
 
-def build_event(spec, ref, me, me_name="Alex Morgan"):
+def build_event(spec, ref, me, me_name="Alex Morgan", tz_name="Asia/Singapore"):
     start, end, all_day = resolve_when(spec["when"], ref)
     domain = me.split("@", 1)[1] if "@" in me else "company.example.com"
     attendees = []
@@ -130,45 +113,31 @@ def build_event(spec, ref, me, me_name="Alex Morgan"):
         if a.get("organizer"):
             entry["organizer"] = True
         attendees.append(entry)
-    if spec.get("attendee_count") and len(attendees) < spec["attendee_count"]:
-        # Large broadcast meetings: pad with anonymous attendees.
-        for i in range(spec["attendee_count"] - len(attendees)):
-            attendees.append(
-                {
-                    "email": f"attendee{i+1:03d}@{domain}",
-                    "displayName": f"Attendee {i+1:03d}",
-                    "responseStatus": "accepted",
-                }
-            )
+    for i in range(max(0, spec.get("attendee_count", 0) - len(attendees))):
+        attendees.append({
+            "email": f"attendee{i+1:03d}@{domain}",
+            "displayName": f"Attendee {i+1:03d}",
+            "responseStatus": "accepted",
+        })
+    ev_id = spec.get("id") or hashlib.md5(spec["summary"].encode("utf-8")).hexdigest()[:16]
     ev = {
-        "id": spec.get("id") or hashlib.md5(spec["summary"].encode()).hexdigest()[:16],
+        "id": ev_id,
         "summary": spec["summary"],
         "status": spec.get("status", "confirmed"),
         "eventType": spec.get("eventType", "default"),
         "attendees": attendees,
         "attendeeCount": len(attendees),
         "organizer": spec.get("organizer", {"email": me, "displayName": me_name}),
+        "start": {"date": start.date().isoformat()} if all_day else {"dateTime": start.isoformat(), "timeZone": tz_name},
+        "end": {"date": end.date().isoformat()} if all_day else {"dateTime": end.isoformat(), "timeZone": tz_name},
+        "_startLocal": start.strftime("%Y-%m-%d %H:%M %Z"),
+        "_minutesFromNow": int((start - ref).total_seconds() // 60),
+        "htmlLink": spec.get("htmlLink", f"https://calendar.google.com/calendar/event?eid={ev_id}"),
     }
-    if all_day:
-        ev["start"] = {"date": start.date().isoformat()}
-        ev["end"] = {"date": end.date().isoformat()}
-    else:
-        ev["start"] = {"dateTime": start.isoformat(), "timeZone": "Asia/Singapore"}
-        ev["end"] = {"dateTime": end.isoformat(), "timeZone": "Asia/Singapore"}
     for key in ("location", "description", "hangoutLink"):
         if spec.get(key):
             ev[key] = spec[key]
-    ev["_startLocal"] = start.strftime("%Y-%m-%d %H:%M %Z")
-    ev["_minutesFromNow"] = int((start - ref).total_seconds() // 60)
-    # Real Calendar API responses carry htmlLink; without it agents tend to
-    # manufacture a calendar URL from the event id.
-    ev.setdefault("htmlLink", f"https://calendar.google.com/calendar/event?eid={ev['id']}")
     return ev
-
-
-# --------------------------------------------------------------------------
-# outbox
-# --------------------------------------------------------------------------
 
 
 def outbox_dir(*parts):
@@ -179,18 +148,15 @@ def outbox_dir(*parts):
 
 def drive_index():
     path = OUTBOX / "drive_index.json"
-    if path.exists():
-        return json.loads(path.read_text())
-    return []
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
 
 
 def save_drive_index(idx):
     outbox_dir()
-    (OUTBOX / "drive_index.json").write_text(json.dumps(idx, indent=2))
+    (OUTBOX / "drive_index.json").write_text(json.dumps(idx, indent=2), encoding="utf-8")
 
 
 def render_placeholders(text, ref):
-    """Resolve date placeholders used in seeded Drive fixtures."""
     if not text:
         return text
     return text.replace("{{TODAY}}", ref.date().isoformat()).replace(
@@ -198,41 +164,19 @@ def render_placeholders(text, ref):
     )
 
 
-def seeded_drive(sc):
-    ref = now()
-    out = []
-    for f in sc.get("drive", []):
-        out.append(
-            {
-                "id": f["id"],
-                "title": render_placeholders(f["title"], ref),
-                "url": f.get(
-                    "url", f"https://docs.google.com/document/d/{f['id']}/edit"
-                ),
-                "content": render_placeholders(f.get("content", ""), ref),
-                "seeded": True,
-            }
-        )
-    return out
-
-
 def all_drive(sc):
-    return seeded_drive(sc) + drive_index()
-
-
-# --------------------------------------------------------------------------
-# flag parsing
-# --------------------------------------------------------------------------
-
-
-def get_flag(args, name, default=None):
-    """Supports `--flag value` and `--flag=value`."""
-    for i, a in enumerate(args):
-        if a == name and i + 1 < len(args):
-            return args[i + 1]
-        if a.startswith(name + "="):
-            return a.split("=", 1)[1]
-    return default
+    ref = now()
+    seeded = [
+        {
+            "id": f["id"],
+            "title": render_placeholders(f["title"], ref),
+            "url": f.get("url", f"https://docs.google.com/document/d/{f['id']}/edit"),
+            "content": render_placeholders(f.get("content", ""), ref),
+            "seeded": True,
+        }
+        for f in sc.get("drive", [])
+    ]
+    return seeded + drive_index()
 
 
 def get_all_flags(args, name):
@@ -245,8 +189,29 @@ def get_all_flags(args, name):
     return out
 
 
+def get_flag(args, name, default=None):
+    vals = get_all_flags(args, name)
+    return vals[0] if vals else default
+
+
+_BOOL_FLAGS = {"--json", "--md"}
+
+
+def positional_args(args, skip=()):
+    """Extract non-flag positional arguments, properly skipping `--flag value` pairs."""
+    out, i = [], 0
+    while i < len(args):
+        a = args[i]
+        if a in _VALUE_FLAGS or (a.startswith("--") and "=" not in a and a not in _BOOL_FLAGS):
+            i += 2
+            continue
+        if not a.startswith("-") and a not in skip:
+            out.append(a)
+        i += 1
+    return out
+
+
 def best_match(entries, query):
-    """Pick the fixture entry whose `match` keywords best cover the query."""
     q = (query or "").lower()
     best, best_score = None, 0
     for e in entries:
@@ -256,62 +221,39 @@ def best_match(entries, query):
     return best
 
 
-# --------------------------------------------------------------------------
-# tools
-# --------------------------------------------------------------------------
-
-
 def tool_gcalendar(args):
     w, sc = scenario()
     me = w["me"]
     me_name = w.get("people", {}).get(me, {}).get("name", "Alex Morgan")
+    tz_name = w.get("timezone", "Asia/Singapore")
     ref = now()
-    events = [build_event(e, ref, me, me_name) for e in sc.get("events", [])]
-    events.sort(key=lambda e: e["start"].get("dateTime", e["start"].get("date", "")))
+    events = sorted(
+        (build_event(e, ref, me, me_name, tz_name) for e in sc.get("events", [])),
+        key=lambda e: e["start"].get("dateTime", e["start"].get("date", "")),
+    )
 
     if "search" in args:
-        query = next(
-            (
-                a
-                for a in args
-                if not a.startswith("-") and a not in ("readonly", "search")
-            ),
-            "",
-        )
-        past = [build_event(e, ref, me, me_name) for e in sc.get("past_events", [])]
-        hits = (
-            [e for e in past if query.lower() in e["summary"].lower()] if query else past
-        )
+        pos = positional_args(args, ("readonly", "search"))
+        query = pos[0] if pos else ""
+        past = [build_event(e, ref, me, me_name, tz_name) for e in sc.get("past_events", [])]
+        hits = [e for e in past if query.lower() in e["summary"].lower()] if query else past
         print(json.dumps(hits, indent=2))
         return
 
     if "get" in args:
-        ident = next(
-            (a for a in args if not a.startswith("-") and a not in ("readonly", "get")),
-            "",
-        )
-        for e in events:
-            if e["id"] == ident:
-                print(json.dumps(e, indent=2))
-                return
-        print(json.dumps({"error": "not found", "id": ident}))
+        pos = positional_args(args, ("readonly", "get"))
+        ident = pos[0] if pos else ""
+        hit = next((e for e in events if e["id"] == ident), {"error": "not found", "id": ident})
+        print(json.dumps(hit, indent=2))
         return
 
-    if "workloc" in args or "working-hours" in args or "freebusy" in args:
-        print(json.dumps({"timezone": "Asia/Singapore", "note": "mock"}, indent=2))
+    if any(k in args for k in ("workloc", "working-hours", "freebusy")):
+        print(json.dumps({"timezone": tz_name, "note": "mock"}, indent=2))
         return
 
-    # events / today
-    date = get_flag(args, "--date")
-    if "today" in args and not date:
-        date = ref.date().isoformat()
+    date = get_flag(args, "--date") or (ref.date().isoformat() if "today" in args else None)
     if date:
-        events = [
-            e
-            for e in events
-            if (e["start"].get("dateTime", "")[:10] or e["start"].get("date", ""))
-            == date
-        ]
+        events = [e for e in events if (e["start"].get("dateTime", "")[:10] or e["start"].get("date", "")) == date]
     start_f, end_f = get_flag(args, "--start"), get_flag(args, "--end")
     if start_f:
         events = [e for e in events if e["start"].get("dateTime", "9999") >= start_f]
@@ -329,20 +271,13 @@ def tool_people(args):
     if not emails:
         print(json.dumps(w["people"], indent=2))
         return
-    out = {}
-    for e in emails:
-        out[e] = w["people"].get(e, "NOT FOUND - no directory entry for this person")
-    print(json.dumps(out, indent=2))
+    print(json.dumps({e: w["people"].get(e, "NOT FOUND - no directory entry for this person") for e in emails}, indent=2))
 
 
 def tool_csa(args):
     _, sc = scenario()
-    prompt = get_flag(args, "--user_prompt", "")
-    hit = best_match(sc.get("csa", []), prompt)
-    if not hit:
-        print("No relevant results found across the requested corpora.")
-        return
-    print(hit["response"])
+    hit = best_match(sc.get("csa", []), get_flag(args, "--user_prompt", ""))
+    print(hit["response"] if hit else "No relevant results found across the requested corpora.")
 
 
 def tool_gmail(args):
@@ -351,22 +286,13 @@ def tool_gmail(args):
         subject = get_flag(args, "--subject", "(no subject)")
         body = get_flag(args, "--body", "")
         d = outbox_dir("emails")
-        n = len(list(d.glob("*.md"))) + 1
-        path = d / f"{n:02d}.md"
-        path.write_text(f"SUBJECT: {subject}\n\n{body}\n")
-        print(f"Message sent to self. Subject: {subject}")
-        print(f"[mock] captured at {path}")
+        path = d / f"{len(list(d.glob('*.md'))) + 1:02d}.md"
+        path.write_text(f"SUBJECT: {subject}\n\n{body}\n", encoding="utf-8")
+        print(f"Message sent to self. Subject: {subject}\n[mock] captured at {path}")
         return
     if "search" in args:
-        query = next(
-            (
-                a
-                for a in args
-                if not a.startswith("-") and a not in ("readonly", "search")
-            ),
-            "",
-        )
-        hit = best_match(sc.get("gmail", []), query)
+        pos = positional_args(args, ("readonly", "search"))
+        hit = best_match(sc.get("gmail", []), pos[0] if pos else "")
         print(hit["results"] if hit else "No messages matched the query.")
         return
     print("No messages matched the query.")
@@ -376,41 +302,23 @@ def tool_gdocs(args):
     _, sc = scenario()
     if "import-md" in args:
         title = get_flag(args, "--title", "Untitled")
-        src = next(
-            (
-                a
-                for a in args
-                if not a.startswith("-")
-                and a not in ("mutate", "import-md")
-                and a.endswith(".md")
-            ),
-            None,
-        )
-        content = ""
-        if src and pathlib.Path(src).exists():
-            content = pathlib.Path(src).read_text()
-        doc_id = "mock-" + hashlib.md5(title.encode()).hexdigest()[:10]
+        pos = [a for a in positional_args(args, ("mutate", "import-md")) if a.endswith(".md")]
+        src = pathlib.Path(pos[0]) if pos else None
+        content = src.read_text(encoding="utf-8") if src and src.exists() else ""
+        doc_id = "mock-" + hashlib.md5(title.encode("utf-8")).hexdigest()[:10]
         url = f"https://docs.google.com/document/d/{doc_id}/edit"
-        d = outbox_dir("docs")
         safe = re.sub(r"[^A-Za-z0-9]+", "_", title)[:80]
-        (d / f"{safe}.md").write_text(f"# {title}\n\n{content}")
+        (outbox_dir("docs") / f"{safe}.md").write_text(f"# {title}\n\n{content}", encoding="utf-8")
         idx = drive_index()
         idx.append({"id": doc_id, "title": title, "url": url, "content": content})
         save_drive_index(idx)
-        print(f"Created document: {title}")
-        print(url)
+        print(f"Created document: {title}\n{url}")
         return
     if "read" in args:
-        ident = next(
-            (
-                a
-                for a in args
-                if not a.startswith("-") and a not in ("readonly", "read")
-            ),
-            "",
-        )
+        pos = positional_args(args, ("readonly", "read"))
+        ident = pos[0] if pos else ""
         for f in all_drive(sc):
-            if ident in (f["id"], f["url"]) or ident in f["url"]:
+            if ident and (ident == f["id"] or ident in f["url"]):
                 print(f"# {f['title']}\n\n{f['content']}")
                 return
         print(f"Document not found: {ident}")
@@ -423,14 +331,10 @@ def tool_gdrive(args):
     needles = get_all_flags(args, "--name-contains") + get_all_flags(args, "--query")
     files = all_drive(sc)
     if needles:
-        matched = []
-        for f in files:
-            for n in needles:
-                toks = [t for t in re.split(r"\s+", n.strip()) if t not in ("-", "")]
-                if all(t.lower() in f["title"].lower() for t in toks):
-                    matched.append(f)
-                    break
-        files = matched
+        files = [
+            f for f in files
+            if any(all(t.lower() in f["title"].lower() for t in n.split() if t != "-") for n in needles)
+        ]
     if not files:
         print("No files matched.")
         return

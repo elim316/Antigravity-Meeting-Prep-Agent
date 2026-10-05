@@ -1,19 +1,16 @@
 #!/usr/bin/env python3
 """Build a TEST-MODE prompt from a real sidecar.json.
 
-The point of this harness is that we test the *shipping* prompt, not a
-hand-written copy of it. This script reads the automation's `sidecar.json`,
-substitutes user/domain placeholders from `fixtures/world.json`, swaps every
-Workspace tool command for the mock shim, prepends a short TEST MODE preamble,
-and prints the result.
-
-    python3 build_test_prompt.py --scenario next_day_mixed
-    python3 build_test_prompt.py --scenario t1h_window --print-cmd
+Reads the automation's `sidecar.json`, substitutes user/domain/timezone
+values from `fixtures/world.json` (working identically on both repo templates
+and already-personalised live sidecars), swaps every Workspace tool token for
+the mock shim (`mock_tool.py`), prepends a TEST MODE preamble, and prints it.
 """
 
 import argparse
 import json
 import pathlib
+import re
 import shlex
 import sys
 
@@ -23,14 +20,6 @@ FALLBACK_SIDECARS = ROOT.parent.parent  # when placed inside ~/.gemini/config/si
 MOCK = ROOT / "mock_tool.py"
 WORLD = ROOT / "fixtures" / "world.json"
 
-
-def resolve_sidecar(name):
-    candidate = REPO_SIDECARS / name / "sidecar.json"
-    if candidate.exists():
-        return candidate
-    return FALLBACK_SIDECARS / name / "sidecar.json"
-
-
 REAL_TO_MOCK = {
     "workspace-calendar": "gcalendar",
     "workspace-gmail": "gmail",
@@ -38,6 +27,11 @@ REAL_TO_MOCK = {
     "workspace-gdrive": "gdrive",
     "workspace-search": "csa_cli",
     "workspace-people": "people",
+    "/google/bin/releases/gemini-agents-gcalendar/gcalendar": "gcalendar",
+    "/google/bin/releases/gemini-agents-gmail/gmail": "gmail",
+    "/google/bin/releases/gemini-agents-gdocs/gdocs": "gdocs",
+    "/google/bin/releases/gemini-agents-gdrive/gdrive": "gdrive",
+    "/google/bin/releases/csa-cli/csa_cli.par": "csa_cli",
 }
 
 HEADER = """=== TEST MODE - SYNTHETIC DATA, NO REAL SIDE EFFECTS ===
@@ -71,9 +65,14 @@ Rules for this run, which override the corresponding instructions further down:
 """
 
 
+def resolve_sidecar(name):
+    candidate = REPO_SIDECARS / name / "sidecar.json"
+    return candidate if candidate.exists() else FALLBACK_SIDECARS / name / "sidecar.json"
+
+
 def load_prompt(sidecar_path):
-    cfg = json.loads(pathlib.Path(sidecar_path).read_text())
-    args = cfg["args"]
+    cfg = json.loads(pathlib.Path(sidecar_path).read_text(encoding="utf-8"))
+    args = cfg.get("args", [])
     if "--" not in args:
         sys.exit(f"{sidecar_path}: no '--' end-of-flags marker in args")
     return args[args.index("--") + 1]
@@ -84,52 +83,39 @@ def main():
     ap.add_argument("--scenario", required=True)
     ap.add_argument("--outbox", default=None)
     ap.add_argument("--now", default=None, help="ISO override for 'now'")
-    ap.add_argument(
-        "--print-cmd",
-        action="store_true",
-        help="print an agentapi invocation instead of the bare prompt",
-    )
+    ap.add_argument("--print-cmd", action="store_true", help="print an agentapi invocation")
     a = ap.parse_args()
 
-    world = json.loads(WORLD.read_text())
+    world = json.loads(WORLD.read_text(encoding="utf-8"))
     if a.scenario not in world["scenarios"]:
-        sys.exit(
-            f"unknown scenario {a.scenario!r}; known: "
-            + ", ".join(sorted(world["scenarios"]))
-        )
+        sys.exit(f"unknown scenario {a.scenario!r}; known: {', '.join(sorted(world['scenarios']))}")
     sc = world["scenarios"][a.scenario]
-    sidecar = resolve_sidecar(sc["automation"])
     outbox = pathlib.Path(a.outbox or f"/tmp/meeting_prep_outbox/{a.scenario}")
 
-    env = f"MP_SCENARIO={a.scenario} MP_OUTBOX={outbox}"
+    env_parts = [f"MP_SCENARIO={shlex.quote(a.scenario)}", f"MP_OUTBOX={shlex.quote(str(outbox))}"]
     if a.now:
-        env += f" MP_NOW={a.now}"
-    prefix = f"{env} python3 {MOCK}"
+        env_parts.append(f"MP_NOW={shlex.quote(a.now)}")
+    prefix = f"{' '.join(env_parts)} python3 {shlex.quote(str(MOCK))}"
 
     me = world["me"]
     domain = me.split("@", 1)[1] if "@" in me else "company.example.com"
     tz = world.get("timezone", "Asia/Singapore")
 
-    prompt = load_prompt(sidecar)
     prompt = (
-        prompt.replace("__USER_EMAIL__", me)
+        load_prompt(resolve_sidecar(sc["automation"]))
+        .replace("__USER_EMAIL__", me)
         .replace("__USER_DOMAIN__", domain)
         .replace("__USER_TIMEZONE__", tz)
     )
+    # Normalise already-personalised live sidecar prompts to the synthetic world user
+    prompt = re.sub(r"(Generator|reminder) for [^\s.]+\.", rf"\1 for {me}.", prompt)
+    prompt = re.sub(r"email domain is not [^\s;]+;", f"email domain is not {domain};", prompt)
+    prompt = re.sub(r"internal attendees \([^)]+\)", f"internal attendees ({domain})", prompt)
     for real, tool in REAL_TO_MOCK.items():
         prompt = prompt.replace(real, f"{prefix} {tool}")
 
-    header = HEADER.format(
-        people_cmd=f"{prefix} people",
-        me=me,
-        outbox=outbox,
-    )
-    full = header + prompt
-
-    if a.print_cmd:
-        print(f"agentapi new-conversation -- {shlex.quote(full)}")
-    else:
-        print(full)
+    full = HEADER.format(people_cmd=f"{prefix} people", me=me, outbox=outbox) + prompt
+    print(f"agentapi new-conversation -- {shlex.quote(full)}" if a.print_cmd else full)
 
 
 if __name__ == "__main__":
