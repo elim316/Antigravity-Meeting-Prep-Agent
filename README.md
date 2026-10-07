@@ -1,13 +1,13 @@
 # Smart Meeting Prep & Dossier Generator
 
-[![Platform: Jetski Scheduled Sidecar](https://img.shields.io/badge/Platform-Jetski_Scheduled_Sidecar-4285F4?style=flat-square&logo=googlecalendar&logoColor=white)](#)
+[![Platform: Antigravity Scheduled Sidecar](https://img.shields.io/badge/Platform-Antigravity_Scheduled_Sidecar-4285F4?style=flat-square&logo=googlecalendar&logoColor=white)](#)
 [![Architecture: Two-Stage Autonomous Agent](https://img.shields.io/badge/Architecture-Two--Stage_Agent-0F9D58?style=flat-square)](#architecture--workflow)
 [![Test Suite: 5 Scenarios / 36 Checks](https://img.shields.io/badge/Tests-36%2F36_Passing_(Hallucination--Linted)-3776AB?style=flat-square&logo=python&logoColor=white)](#mock-test-harness-5-scenarios--36-checks)
 [![Observability: Agent Tracer Compatible](https://img.shields.io/badge/Observability-Agent_Tracer_Ready-8E24AA?style=flat-square)](#observability-with-agent-tracer)
 
 ![Smart Meeting Prep & Dossier Assistant Overview](assets/overview_infographic.jpg)
 
-An autonomous, two-stage **Meeting Prep & Dossier Generator** built on Jetski Scheduled Sidecars (`"builtin": "schedule"`). It monitors your Google Calendar for upcoming **external** or **cross-functional** meetings, conducts multi-corpus research across Calendar, Gmail, Chat, Drive, and the People Directory, creates a cited **1-Page Briefing Google Doc** per meeting, and emails you a concise digest with clickable source links.
+An autonomous, two-stage **Meeting Prep & Dossier Generator** built on Antigravity Scheduled Sidecars (`"builtin": "schedule"`). It monitors your Google Calendar for upcoming **external** or **cross-functional** meetings, conducts multi-corpus research across Calendar, Gmail, Chat, Drive, and the People Directory, creates a cited **1-Page Briefing Google Doc** per meeting, and emails you a concise digest with clickable source links.
 
 ---
 
@@ -78,9 +78,9 @@ flowchart TB
 ## Repository Structure
 
 ```text
-jetski-meeting-prep-agent/
+antigravity-meeting-prep-agent/
 ├── README.md                                    # Architecture, setup, test suite & Agent Tracer guide
-├── plugin.json                                  # Jetski plugin manifest
+├── plugin.json                                  # Antigravity plugin manifest
 ├── install.sh                                   # One-command installer & personaliser (__USER_EMAIL__, __USER_TIMEZONE__)
 ├── assets/
 │   └── overview_infographic.jpg                 # Executive business infographic
@@ -107,15 +107,15 @@ jetski-meeting-prep-agent/
 Run `install.sh` with your email and timezone to populate the sidecar templates and install both automations into `~/.gemini/config/sidecars/`:
 
 ```bash
-git clone https://github.com/elim316/Jetski-Meeting-Prep-Agent.git
-cd Jetski-Meeting-Prep-Agent
+git clone https://github.com/elim316/Antigravity-Meeting-Prep-Agent.git
+cd Antigravity-Meeting-Prep-Agent
 
 ./install.sh --email you@company.com --timezone Asia/Singapore
 ```
 
-### 2. Enable in the Jetski Automations Dashboard
-Newly created sidecars are registered automatically by the Jetski server, and require a one-time toggle in the UI to start their cron supervisors:
-1. Open the **Automations Dashboard** (`sidecar://dashboard`) in Jetski.
+### 2. Enable in the Antigravity Automations Dashboard
+Newly created sidecars are registered automatically by the Antigravity server, and require a one-time toggle in the UI to start their cron supervisors:
+1. Open the **Automations Dashboard** (`sidecar://dashboard`) in Antigravity.
 2. Toggle **ON**:
    - **Meeting Prep Dossier (next business day)**
    - **Meeting Prep Reminder (T-1 hour)**
@@ -150,10 +150,10 @@ python3 check_output.py --scenario next_day_mixed --strict --show
 
 ## Observability with Agent Tracer
 
-Because every scheduled cron run and every `run_scenario.sh` test run spawns a standard Jetski conversation via `agentapi new-conversation`, this agent pairs directly with the **[Jetski Agent Tracer Plugin](https://github.com/elim316/Jetski-Agent-Tracer-Plugin)**:
+Because every scheduled cron run and every `run_scenario.sh` test run spawns a standard Antigravity conversation via `agentapi new-conversation`, this agent pairs directly with the **[Antigravity Agent Tracer Plugin](https://github.com/elim316/Antigravity-Agent-Tracer-Plugin)**:
 
 1. **Trigger a live or mock run:** Run `bash test/run_scenario.sh next_day_mixed` (or let the cron schedule trigger).
-2. **Open the conversation in Jetski** and launch **Agent Tracer** from the `+ (Extensions)` menu.
+2. **Open the conversation in Antigravity** and launch **Agent Tracer** from the `+ (Extensions)` menu.
 3. **Inspect the 3-Lane Swimlane Graph in real time:**
    - **Top Lane (`USER REQUEST`):** View the compiled automation prompt.
    - **Middle Lane (`MAIN AGENT` / `AGENT REPLY`):** Watch the agent qualify events, cross-check teams, and synthesise the dossier.
