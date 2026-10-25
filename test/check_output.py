@@ -41,7 +41,7 @@ NAME_LEADING_STOPWORDS = {
 _NAME_RE = re.compile(r"\b[A-Z][a-z]{2,} [A-Z][a-z]{2,}\b")
 _BUG_RE = re.compile(r"\bb/\d+\b")
 _URL_RE = re.compile(r"https?://[^\s)\]\"'>]+")
-_ISSUE_ID_RE = re.compile(r"(?:b\.corp\.google\.com)?/(?:issues/)?(\d+)$")
+_ISSUE_ID_RE = re.compile(r"(?:bugs\.company\.example\.com)?/(?:issues/)?(\d+)$")
 _HEADING_RE = re.compile(r"(?m)^#{1,6}\s+(.*)$")
 
 

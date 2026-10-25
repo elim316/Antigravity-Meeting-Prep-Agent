@@ -85,7 +85,7 @@ class TestMeetingPrepHarness(unittest.TestCase):
     def test_lint_hallucinations_catches_fabricated_entities(self):
         world, sc = check_output.load("next_day_mixed")
         corpus = check_output.corpus_for(world, sc)
-        clean = "## Meeting Details\nAlex Morgan\nhttps://docs.google.com/document/d/mock-123/edit\nhttps://b.corp.google.com/issues/412998877"
+        clean = "## Meeting Details\nAlex Morgan\nhttps://docs.google.com/document/d/mock-123/edit\nhttps://bugs.company.example.com/issues/412998877"
         self.assertEqual(check_output.lint_hallucinations(clean, corpus), [])
         bad = check_output.lint_hallucinations("Met Zaphod Beeblebrox on b/999999999 at https://evil.example.org/x.", corpus)
         self.assertEqual({k for k, _ in bad}, {"name", "bug", "url"})
